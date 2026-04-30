@@ -1,25 +1,73 @@
-# LLM Project
-
-## Semantic Search Demo
-A semantic search demo using OpenAI Embeddings and pgvector.
-
-## Features
-- Batch insert documents with vector embeddings
-- Cosine similarity-based semantic search
-- Display similarity scores for search results
-
 ## Tech Stack
-- Python, OpenAI API, PostgreSQL, pgvector, psycopg3
+
+| Layer | Tool |
+|---|---|
+| Document Loading | LangChain PyPDFLoader |
+| Chunking | RecursiveCharacterTextSplitter |
+| Embedding | OpenAI text-embedding-3-small |
+| Vector Store | pgvector (PostgreSQL) |
+| LLM | GPT-4.1-mini via LangChain |
 
 ## Getting Started
-1. Set environment variable `OPENAI_API_KEY`
-2. Start PostgreSQL and enable pgvector extension
-3. Insert documents: `python -m test_embedding.insert_documents`
-4. Run search: `python -m test_embedding.semantic_search`
 
-## Example
-```python
-semantic_search_by_query("how to speed up vector search")
-# #1 similarity: 0.6375 | 向量数据库通过近似最近邻算法加速相似度搜索
-# #2 similarity: 0.5663 | HNSW索引通过分层图结构实现高效的向量检索
+**Prerequisites:** Python 3.10+, PostgreSQL with pgvector, OpenAI API key
+
+```bash
+pip install langchain langchain-community langchain-openai langchain-postgres openai psycopg
 ```
+
+```sql
+-- Enable pgvector in PostgreSQL
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+```bash
+export OPENAI_API_KEY=your_key_here
+```
+
+Update `CONNECTION_STRING` in `main.py` to match your PostgreSQL setup.
+
+## Usage
+
+```python
+# Ingest a single PDF
+load_store_pdf_data("path/to/document.pdf")
+
+# Ingest multiple PDFs (batch)
+load_store_pdf_batch(["doc1.pdf", "doc2.pdf"])
+
+# Query
+results = query_data("What is the refund policy?")
+build_prompt(query="What is the refund policy?", query_results=results)
+```
+
+## Key Design Decisions
+
+**Why RecursiveCharacterTextSplitter?**  
+Splits on natural boundaries (paragraphs → sentences → words) before falling 
+back to character count — produces more semantically coherent chunks.
+
+**Why pgvector over a dedicated vector DB?**  
+For small-to-medium document sets, pgvector inside existing PostgreSQL needs 
+no extra service. For millions of vectors, Pinecone/Weaviate would scale better.
+
+**Chunk size 200, overlap 50 — why?**  
+Small chunks keep each vector focused on one concept (better retrieval precision). 
+Overlap prevents answers being cut off at chunk boundaries.
+
+## Error Handling
+
+- Missing or invalid `OPENAI_API_KEY`
+- PDF file not found or corrupted  
+- OpenAI API errors (auth, rate limit, timeout)
+- pgvector connection failure
+- Empty query input
+- Batch ingestion: one failed file does not block others
+
+## Roadmap
+
+- [ ] Support `.txt` and `.docx` formats
+- [ ] Add reranking (Cohere Rerank or cross-encoder)
+- [ ] Expose as REST API (FastAPI)
+- [ ] Pinecone integration for scale comparison
+- [ ] Streaming LLM responses
